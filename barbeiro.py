@@ -1,68 +1,74 @@
 import pika
 import time
-import sys
+from rich.console import Console
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeRemainingColumn
+
+# Instancia o console da Rich
+console = Console()
 
 def main():
     connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
     channel = connection.channel()
 
-    # Fila durável, com 3 cadeiras e rejeição de excedentes
     args = {"x-max-length": 3, "x-overflow": "reject-publish"}
     channel.queue_declare(queue='sala_espera', durable=True, arguments=args)
 
-    # Variável de estado (usamos um dicionário para poder alterá-la dentro da função)
     estado = {"dormindo": True}
 
     def cortar_cabelo(ch, method, properties, body):
         cliente = body.decode()
         
-        # --- 1. VALIDAÇÃO DO ESTADO INICIAL ---
+        # --- ESTADO INICIAL COM PAINÉIS COLORIDOS ---
         if estado["dormindo"]:
-            print(f"🥱 [Barbeiro] Acordou no susto e está cortando o cabelo de: {cliente}")
-            estado["dormindo"] = False # Agora ele está acordado
+            mensagem = f"[bold yellow]🥱 Acordou no susto![/bold yellow]\nO barbeiro começou a cortar o cabelo de: [bold cyan]{cliente}[/bold cyan]"
+            console.print(Panel(mensagem, title="[Barbeiro]", border_style="yellow"))
+            estado["dormindo"] = False 
         else:
-            print(f"🗣️ [Barbeiro] Chamou o próximo da fila e está cortando o cabelo de: {cliente}")
+            mensagem = f"[bold green]🗣️ Chamou o próximo da fila![/bold green]\nO barbeiro puxou: [bold cyan]{cliente}[/bold cyan]"
+            console.print(Panel(mensagem, title="[Barbeiro]", border_style="green"))
         
-        # --- LÓGICA DA BARRA DE PROGRESSO ---
-        tempo_total_corte = 15.0
-        tamanho_da_barra = 30
-        tempo_por_passo = tempo_total_corte / tamanho_da_barra
+        # --- BARRA DE PROGRESSO ANIMADA DA RICH ---
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeRemainingColumn(), # Calcula o tempo restante automaticamente
+            console=console
+        ) as progress:
+            # Cria a tarefa com meta de 100%
+            task = progress.add_task(f"[cyan]Cortando cabelo de {cliente}...", total=100)
+            
+            # Simulando os 15 segundos que você definiu (100 passos de 0.15 segundos)
+            for _ in range(100):
+                time.sleep(0.15)
+                progress.update(task, advance=1)
+        # ------------------------------------------
         
-        for i in range(tamanho_da_barra + 1):
-            porcentagem = (i / tamanho_da_barra) * 100
-            barra_preenchida = '█' * i
-            barra_vazia = '-' * (tamanho_da_barra - i)
-            sys.stdout.write(f"\r⏳ Progresso do corte: |{barra_preenchida}{barra_vazia}| {porcentagem:.0f}%")
-            sys.stdout.flush()
-            if i < tamanho_da_barra:
-                time.sleep(tempo_por_passo)
-        # ------------------------------------
+        console.print(f"[bold green]✅ Finalizou o corte de {cliente}.[/bold green]\n")
         
-        print(f"\n✅ [Barbeiro] Finalizou o corte de {cliente}.")
-        
-        # Avisa a fila que o cliente foi atendido (libera a cadeira)
         ch.basic_ack(delivery_tag=method.delivery_tag)
 
-        # --- 2. VERIFICAÇÃO SE A FILA ESVAZIOU ---
-        # passive=True apenas lê o status da fila no RabbitMQ sem modificá-la
+        # --- VERIFICAÇÃO DA FILA ---
         status_fila = ch.queue_declare(queue='sala_espera', durable=True, passive=True)
         clientes_esperando = status_fila.method.message_count
         
         if clientes_esperando == 0:
-            print("💤 A fila ficou vazia. O barbeiro voltou a dormir...\n")
-            estado["dormindo"] = True # Atualiza o estado para dormir
+            console.print(Panel("[bold blue]💤 A fila ficou vazia.[/bold blue]\nO barbeiro voltou a dormir...", title="[Situação 1]", border_style="blue"))
+            estado["dormindo"] = True 
         else:
-            print(f"👀 [Barbeiro] Olhou para as cadeiras e puxou o próximo. Restam {clientes_esperando} cliente(s) esperando.\n")
+            console.print(f"[bold magenta]👀 Olhou para as cadeiras... Restam {clientes_esperando} cliente(s) esperando.[/bold magenta]\n")
 
-    # Garante que o barbeiro pegue apenas 1 cliente por vez
     channel.basic_qos(prefetch_count=1)
     channel.basic_consume(queue='sala_espera', on_message_callback=cortar_cabelo)
 
-    print('💤  Barbearia abriu agora. Barbeiro dormindo, aguardando clientes...\n')
+    # Mensagem inicial ao ligar o servidor
+    console.print(Panel("[bold blue]💤 Barbearia abriu agora.[/bold blue]\nBarbeiro dormindo, aguardando clientes...", title="[Situação 1]", border_style="blue"))
     try:
         channel.start_consuming()
     except KeyboardInterrupt:
-        print("\n🛑 Fechando a barbearia e encerrando o expediente...")
+        console.print("\n[bold red]🛑 Fechando a barbearia e encerrando o expediente...[/bold red]")
         channel.stop_consuming()
     connection.close()
 

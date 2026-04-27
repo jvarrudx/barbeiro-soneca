@@ -1,23 +1,22 @@
 import pika
 import sys
+from rich.console import Console
+from rich.panel import Panel
+
+console = Console()
 
 def chegar_na_barbearia(nome_cliente):
     connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
     channel = connection.channel()
 
-    # Habilita a confirmação de publicação para sabermos se foi rejeitado
     channel.confirm_delivery()
 
-    # 1. ESPIANDO A FILA: Declaramos a fila com as MESMAS regras do barbeiro.
-    # Se ela já existir, o RabbitMQ apenas devolve o status atual dela.
+    # Espia a fila
     args = {"x-max-length": 3, "x-overflow": "reject-publish"}
     status_fila = channel.queue_declare(queue='sala_espera', durable=True, arguments=args)
-    
-    # Pegamos a quantidade de cadeiras ocupadas ANTES desse cliente tentar sentar
     clientes_na_frente = status_fila.method.message_count
 
     try:
-        # Tenta colocar o cliente na fila
         channel.basic_publish(
             exchange='',
             routing_key='sala_espera',
@@ -25,16 +24,16 @@ def chegar_na_barbearia(nome_cliente):
             mandatory=True
         )
         
-        # --- 2. MENSAGENS PERSONALIZADAS DE CHEGADA ---
         if clientes_na_frente == 0:
-             print(f"🚶‍♂️  {nome_cliente} chegou e sentou. Não há ninguém na espera, ele é o próximo!")
+            mensagem = f"[bold green]🚶‍♂️ {nome_cliente} chegou e sentou.[/bold green]\nNão há ninguém na espera, ele é o próximo!"
+            console.print(Panel(mensagem, title="[Situação 2]", border_style="green"))
         else:
-             print(f"🚶‍♂️  {nome_cliente} chegou e sentou. Tem {clientes_na_frente} cliente(s) na frente dele.")
-        # ----------------------------------------------
-        
+            mensagem = f"[bold yellow]🚶‍♂️ {nome_cliente} chegou e sentou.[/bold yellow]\nTem [bold white]{clientes_na_frente}[/bold white] cliente(s) na frente dele."
+            console.print(Panel(mensagem, title="[Situação 2]", border_style="yellow"))
+            
     except pika.exceptions.NackError:
-        # O x-overflow: reject-publish envia um NACK se a fila estiver cheia
-        print(f"🚪 Fila lotada! {nome_cliente} olhou e foi embora.")
+        mensagem = f"[bold red]🚪 Fila lotada![/bold red]\n[bold white]{nome_cliente}[/bold white] olhou as 3 cadeiras ocupadas e foi embora."
+        console.print(Panel(mensagem, title="[Situação 3]", border_style="red"))
         
     connection.close()
 
