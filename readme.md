@@ -3,11 +3,11 @@
 Trabalho prático da disciplina de **Sistemas Distribuídos**, implementando uma solução para o clássico problema de concorrência e sincronização de processos conhecido como "Barbeiro Dorminhoco". O projeto foi desenvolvido utilizando arquitetura de mensageria com RabbitMQ e Python.
 
 ## 🧑🏻‍🎓 Integrantes
-* **Alunos:** João Victor Costa Arruda, [Nome do Aluno 2], [Nome do Aluno 3]
-* **Professor:** [Nome do Professor]
-* **Curso:** Sistemas de Informação - 6° Período
+* **Alunos:** João Victor Costa Arruda, Roberto Henrique Duarte, Gabriel Takatsuka Farche
+* **Professor:** Carlos Henrique Silva
+* **Curso:** Sistemas de Informação - 7° Período
 * **Disciplina:** Sistemas Distribuídos
-* **Data de Entrega:** Até dia 29/04
+
   
 ## 🎯 Visão Geral do Projeto
 Este projeto simula o funcionamento da barbearia Soneca utilizando um sistema de mensageria para gerenciar a comunicação assíncrona entre clientes e o barbeiro. O objetivo é não deixar o barbeiro dormir se houver clientes, respeitando estritamente as seguintes situações:
